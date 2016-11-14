@@ -6,7 +6,6 @@
  */
 
 #include <iostream>
-#include <cstdio>
 #include <algorithm>    /* for_each */
 
 #include "GF28Value.hh"
@@ -35,12 +34,17 @@ static bool verifyData(unsigned char *encode, unsigned char *decode,
 }
 
 #include <time.h>
+/* In this test, we create n rows random data and encode it to make additional m rows FEC data
+ * then select any n rows data from original data, FEC data or both,
+ * recover data using them and verify if the result equals to the original data.
+ */
 static void _doTest(unsigned int *lines, bool showResult) {
     unsigned char data[DATA_SIZE][DATA_SIZE] = { { 0 } };       /* original data */
     unsigned char encode[ENCODE_SIZE][DATA_SIZE] = { { 0 } };   /* encoded data */
     unsigned char decode[DATA_SIZE][DATA_SIZE] = { { 0 } };     /* data which to be decode */
     unsigned char recover[DATA_SIZE][DATA_SIZE] = { { 0 } };    /* should be equal with original data */
 
+    /* Setup output format and create test data with random data */
     if (showResult) {
         cout << "Original data:" << endl;
     }
@@ -51,7 +55,7 @@ static void _doTest(unsigned int *lines, bool showResult) {
     cout.setf(std::ios::hex, std::ios::basefield);
     for (unsigned int i = 0; i < DATA_SIZE; ++i) {
         for (unsigned int j = 0; j < DATA_SIZE; ++j) {
-            /* make data */
+            /* random data (DATA_SIZE x DATA_SIZE byte) */
             data[i][j] = rand() % 256;
             if (showResult) {
                 cout.width(2); /* width reset to 0 automatically after inserting numbers to cout. */
@@ -66,11 +70,15 @@ static void _doTest(unsigned int *lines, bool showResult) {
     cout.fill(f);
     cout.width(w);
 
-    /* encode */
+    /* Encode original data to (DATA_SIZE x ENCODE_SIZE) byte.
+     * creating additional ((ENCODE_SIZE - DATA_SIZE) x DATA_SIZE) byte FEC data
+     * */
     for (unsigned int i = 0; i < ENCODE_SIZE; ++i) {
         rs.encodeLine((unsigned char *) data, DATA_SIZE, encode[i]);
     }
-    /* swap rows of encode data */
+
+    /* Select any DATA_SIZE rows from encoded data to recover original data
+     * and swap rows putting identity rows in their proper places */
     for (unsigned int i = 0; i < DATA_SIZE; ++i) {
         if (lines[i] < DATA_SIZE && lines[i] != i) {
             unsigned int index = lines[i];
@@ -81,10 +89,12 @@ static void _doTest(unsigned int *lines, bool showResult) {
     for (unsigned int i = 0; i < DATA_SIZE; ++i) {
         memcpy(decode[i], &encode[lines[i]], DATA_SIZE);
     }
-    /* decode */
+
+    /* Recover original data using selected rows */
     rs.decode((unsigned char *) decode, lines, (unsigned char *) recover,
             DATA_SIZE);
 
+    /* Debug info */
     w = cout.width();
     cout.width(2);
     f = cout.fill();
@@ -104,6 +114,7 @@ static void _doTest(unsigned int *lines, bool showResult) {
     cout.fill(f);
     cout.width(w);
 
+    /* verity result */
     bool res = verifyData((unsigned char*) data, (unsigned char*) recover,
             DATA_SIZE, DATA_SIZE);
     if (res) {
